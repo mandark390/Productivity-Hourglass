@@ -2,7 +2,5 @@
   "name": "Hourglass",
   "description": "A minimalist floating digital hourglass productivity widget for Windows desktop and browser, featuring accurate timestamp timers, flowing sand physics, and multiple independent windows.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

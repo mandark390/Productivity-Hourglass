@@ -17,6 +17,20 @@ declare global {
   }
 }
 
+export interface PiPResult {
+  success: boolean;
+  reason?: 'iframe' | 'unsupported' | 'error';
+  errorMessage?: string;
+}
+
+export function isInsideIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
 export function isPiPSupported(): boolean {
   return typeof window !== 'undefined' && 'documentPictureInPicture' in window;
 }
@@ -24,9 +38,14 @@ export function isPiPSupported(): boolean {
 export async function openHourglassInDesktopPiP(
   timer: HourglassTimer,
   onUpdate: (partial: Partial<HourglassTimer>) => void
-): Promise<boolean> {
+): Promise<PiPResult> {
+  // Check if running inside iframe (which browser security blocks from PiP requestWindow)
+  if (isInsideIframe()) {
+    return { success: false, reason: 'iframe' };
+  }
+
   if (!isPiPSupported() || !window.documentPictureInPicture) {
-    return false;
+    return { success: false, reason: 'unsupported' };
   }
 
   try {
@@ -154,9 +173,12 @@ export async function openHourglassInDesktopPiP(
       root.unmount();
     });
 
-    return true;
-  } catch (err) {
-    console.error('Failed to open Picture-in-Picture window:', err);
-    return false;
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('top-level browsing context')) {
+      return { success: false, reason: 'iframe', errorMessage: errorMsg };
+    }
+    return { success: false, reason: 'error', errorMessage: errorMsg };
   }
 }

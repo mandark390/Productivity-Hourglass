@@ -7,6 +7,7 @@ import { TimerSetupModal } from './components/TimerSetupModal';
 import { ManagerWindow } from './components/ManagerWindow';
 import { DesktopTray } from './components/DesktopTray';
 import { DesktopExportModal } from './components/DesktopExportModal';
+import { DesktopPiPModal } from './components/DesktopPiPModal';
 import { openHourglassInDesktopPiP } from './utils/pip';
 
 export default function App() {
@@ -18,6 +19,8 @@ export default function App() {
   const [maxZIndex, setMaxZIndex] = useState(20);
   const [backgroundTheme, setBackgroundTheme] = useState('dark-slate');
   const [hideBackdrop, setHideBackdrop] = useState(false);
+  const [isPipModalOpen, setIsPipModalOpen] = useState(false);
+  const [pipTimerName, setPipTimerName] = useState('Hourglass');
 
   // Save changes to persistence whenever timers change
   useEffect(() => {
@@ -86,6 +89,30 @@ export default function App() {
       isPaused: false,
     });
   }, [updateTimer]);
+
+  // Pop out hourglass into native OS floating window
+  const handleRequestPiP = useCallback(async (targetTimer?: HourglassTimer) => {
+    const timerToUse = targetTimer || timers.find((t) => !t.minimized) || timers[0];
+    if (!timerToUse) {
+      setIsModalOpen(true);
+      return;
+    }
+    const result = await openHourglassInDesktopPiP(timerToUse, (partial) => updateTimer(timerToUse.id, partial));
+    if (!result.success) {
+      setPipTimerName(timerToUse.name);
+      setIsPipModalOpen(true);
+    }
+  }, [timers, updateTimer]);
+
+  // Check if opened with ?pip=true in a top-level tab
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pip') === 'true') {
+      const activeTimer = timers.find((t) => !t.minimized) || timers[0];
+      if (activeTimer) {
+        openHourglassInDesktopPiP(activeTimer, (partial) => updateTimer(activeTimer.id, partial));
+      }
+    }
+  }, [timers, updateTimer]);
 
   // Pause all active timers
   const pauseAllTimers = useCallback(() => {
@@ -261,14 +288,7 @@ export default function App() {
 
         {/* Float on Real Desktop (Outside App / PiP) */}
         <button
-          onClick={async () => {
-            if (timers.length > 0) {
-              const activeTimer = timers.find((t) => !t.minimized) || timers[0];
-              await openHourglassInDesktopPiP(activeTimer, (partial) => updateTimer(activeTimer.id, partial));
-            } else {
-              setIsModalOpen(true);
-            }
-          }}
+          onClick={() => handleRequestPiP()}
           title="Pop Out: Float hourglass outside app directly on your Windows desktop"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold shadow-lg backdrop-blur-md transition-all"
         >
@@ -327,6 +347,7 @@ export default function App() {
               setIsModalOpen(true);
             }}
             onBringToFront={() => bringToFront(timer.id)}
+            onRequestPiP={handleRequestPiP}
           />
         ))}
 
@@ -394,6 +415,14 @@ export default function App() {
       <DesktopExportModal
         isOpen={isDesktopGuideOpen}
         onClose={() => setIsDesktopGuideOpen(false)}
+      />
+
+      {/* PICTURE-IN-PICTURE DESKTOP MODAL */}
+      <DesktopPiPModal
+        isOpen={isPipModalOpen}
+        onClose={() => setIsPipModalOpen(false)}
+        timerName={pipTimerName}
+        onOpenDesktopGuide={() => setIsDesktopGuideOpen(true)}
       />
 
       {/* WINDOWS SIMULATED SYSTEM TRAY & TASKBAR (Hidden when backdrop is disabled) */}

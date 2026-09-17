@@ -25,6 +25,7 @@ interface HourglassWidgetProps {
   onDelete: () => void;
   onEdit: () => void;
   onBringToFront: () => void;
+  onRequestPiP?: (timer: HourglassTimer) => void;
   isElectron?: boolean;
 }
 
@@ -34,6 +35,7 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
   onDelete,
   onEdit,
   onBringToFront,
+  onRequestPiP,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [timerState, setTimerState] = useState<CalculatedTimerState>(() =>
@@ -280,9 +282,10 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
         <button
           title="Pop Out to Desktop: Float outside browser anywhere on your screen"
           onClick={async () => {
-            const success = await openHourglassInDesktopPiP(timer, onUpdate);
-            if (!success) {
-              alert('To float outside the browser on your real Windows desktop, modern browsers support Document Picture-in-Picture (Chrome/Edge), or you can run the native desktop .exe!');
+            if (onRequestPiP) {
+              onRequestPiP(timer);
+            } else {
+              await openHourglassInDesktopPiP(timer, onUpdate);
             }
           }}
           className="p-1 rounded-full text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 transition-colors"
