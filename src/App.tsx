@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Hourglass, HelpCircle, Download } from 'lucide-react';
+import { Plus, Hourglass, HelpCircle, Download, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { HourglassTimer } from './types';
 import { loadTimersFromStorage, saveTimersToStorage } from './utils/storage';
 import { HourglassWidget } from './components/HourglassWidget';
@@ -7,6 +7,7 @@ import { TimerSetupModal } from './components/TimerSetupModal';
 import { ManagerWindow } from './components/ManagerWindow';
 import { DesktopTray } from './components/DesktopTray';
 import { DesktopExportModal } from './components/DesktopExportModal';
+import { openHourglassInDesktopPiP } from './utils/pip';
 
 export default function App() {
   const [timers, setTimers] = useState<HourglassTimer[]>(() => loadTimersFromStorage());
@@ -16,6 +17,7 @@ export default function App() {
   const [isDesktopGuideOpen, setIsDesktopGuideOpen] = useState(false);
   const [maxZIndex, setMaxZIndex] = useState(20);
   const [backgroundTheme, setBackgroundTheme] = useState('dark-slate');
+  const [hideBackdrop, setHideBackdrop] = useState(false);
 
   // Save changes to persistence whenever timers change
   useEffect(() => {
@@ -220,15 +222,18 @@ export default function App() {
 
   // Determine desktop background styling
   const getBackgroundClass = () => {
+    if (hideBackdrop) {
+      return 'bg-transparent';
+    }
     switch (backgroundTheme) {
       case 'windows-bloom':
         return 'bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950/60';
       case 'archicad':
-        return 'bg-[#181c24] bg-[radial-gradient(#2a3447_1px,transparent_1px)] [background-size:24px_24px]';
+        return 'bg-[#181c24] [background-image:linear-gradient(to_right,#2a3447_1px,transparent_1px),linear-gradient(to_bottom,#2a3447_1px,transparent_1px)] [background-size:32px_32px]';
       case 'minimal-light':
         return 'bg-[#f1f5f9]';
       case 'clean-transparent':
-        return 'bg-slate-950 [background-image:linear-gradient(45deg,#1e293b_25%,transparent_25%),linear-gradient(-45deg,#1e293b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1e293b_75%),linear-gradient(-45deg,transparent_75%,#1e293b_75%)] [background-size:20px_20px] [background-position:0_0,0_10px,10px_-10px,-10px_0px]';
+        return 'bg-transparent';
       case 'dark-slate':
       default:
         return 'bg-[#0f172a]';
@@ -241,7 +246,7 @@ export default function App() {
       className={`relative w-screen h-screen overflow-hidden select-none transition-colors duration-300 ${getBackgroundClass()}`}
     >
       {/* Top Bar / Quick Actions Bar (Fades out when not hovering to keep desktop clean) */}
-      <div className="absolute top-3 left-4 z-[6000] flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-200">
+      <div className="absolute top-3 left-4 z-[6000] flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity duration-200">
         <button
           onClick={() => {
             setEditingTimer(null);
@@ -252,6 +257,37 @@ export default function App() {
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New Hourglass</span>
+        </button>
+
+        {/* Float on Real Desktop (Outside App / PiP) */}
+        <button
+          onClick={async () => {
+            if (timers.length > 0) {
+              const activeTimer = timers.find((t) => !t.minimized) || timers[0];
+              await openHourglassInDesktopPiP(activeTimer, (partial) => updateTimer(activeTimer.id, partial));
+            } else {
+              setIsModalOpen(true);
+            }
+          }}
+          title="Pop Out: Float hourglass outside app directly on your Windows desktop"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold shadow-lg backdrop-blur-md transition-all"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span>Float Outside App (On Desktop)</span>
+        </button>
+
+        {/* Toggle Backdrop Off/On */}
+        <button
+          onClick={() => setHideBackdrop(!hideBackdrop)}
+          title={hideBackdrop ? 'Restore simulated desktop backdrop' : 'Hide backdrop completely'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium backdrop-blur-md transition-all ${
+            hideBackdrop
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              : 'bg-slate-900/60 text-slate-300 hover:text-white border-slate-700/60'
+          }`}
+        >
+          {hideBackdrop ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          <span>{hideBackdrop ? 'Show Backdrop' : 'Hide Backdrop'}</span>
         </button>
 
         <button
@@ -360,22 +396,24 @@ export default function App() {
         onClose={() => setIsDesktopGuideOpen(false)}
       />
 
-      {/* WINDOWS SIMULATED SYSTEM TRAY & TASKBAR */}
-      <DesktopTray
-        activeCount={timers.filter((t) => !t.minimized).length}
-        onNewHourglass={() => {
-          setEditingTimer(null);
-          setIsModalOpen(true);
-        }}
-        onShowAll={showAllWindows}
-        onHideAll={hideAllWindows}
-        onPauseAll={pauseAllTimers}
-        onResumeAll={resumeAllTimers}
-        onOpenManager={() => setIsManagerOpen(true)}
-        onOpenDesktopGuide={() => setIsDesktopGuideOpen(true)}
-        backgroundTheme={backgroundTheme}
-        onChangeBackgroundTheme={setBackgroundTheme}
-      />
+      {/* WINDOWS SIMULATED SYSTEM TRAY & TASKBAR (Hidden when backdrop is disabled) */}
+      {!hideBackdrop && (
+        <DesktopTray
+          activeCount={timers.filter((t) => !t.minimized).length}
+          onNewHourglass={() => {
+            setEditingTimer(null);
+            setIsModalOpen(true);
+          }}
+          onShowAll={showAllWindows}
+          onHideAll={hideAllWindows}
+          onPauseAll={pauseAllTimers}
+          onResumeAll={resumeAllTimers}
+          onOpenManager={() => setIsManagerOpen(true)}
+          onOpenDesktopGuide={() => setIsDesktopGuideOpen(true)}
+          backgroundTheme={backgroundTheme}
+          onChangeBackgroundTheme={setBackgroundTheme}
+        />
+      )}
     </div>
   );
 }

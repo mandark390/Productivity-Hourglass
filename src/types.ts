@@ -34,6 +34,7 @@ export interface HourglassTimer {
   soundEnabled: boolean;
   alwaysOnTop: boolean;
   themeId: string;
+  frameless?: boolean;
   
   // Floating Window Geometry
   position: { x: number; y: number };

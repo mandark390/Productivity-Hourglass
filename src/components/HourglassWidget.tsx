@@ -11,11 +11,13 @@ import {
   PinOff,
   Maximize2,
   Palette,
+  ExternalLink,
 } from 'lucide-react';
 import { HourglassTimer, CalculatedTimerState } from '../types';
 import { HourglassGraphic } from './HourglassGraphic';
 import { calculateTimerState, getTheme, SAND_THEMES } from '../utils/time';
 import { playCompletionChime, playClickSound } from '../utils/audio';
+import { openHourglassInDesktopPiP } from '../utils/pip';
 
 interface HourglassWidgetProps {
   timer: HourglassTimer;
@@ -45,7 +47,6 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
   // Dragging and resizing refs
   const isDraggingRef = useRef(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
-  const hasMovedRef = useRef(false);
   const isResizingRef = useRef(false);
   const resizeStartRef = useRef({ x: 0, y: 0, startW: 0, startH: 0 });
 
@@ -126,12 +127,11 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
     [timer, onUpdate]
   );
 
-  // --- DRAGGING LOGIC (Drag anywhere on the hourglass itself) ---
+  // --- DRAGGING LOGIC (Drag anywhere directly on the hourglass) ---
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, select')) return;
     onBringToFront();
     isDraggingRef.current = true;
-    hasMovedRef.current = false;
     dragOffsetRef.current = {
       x: e.clientX - timer.position.x,
       y: e.clientY - timer.position.y,
@@ -139,7 +139,6 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isDraggingRef.current) return;
-      hasMovedRef.current = true;
       const newX = Math.max(0, Math.min(window.innerWidth - timer.size.width, moveEvent.clientX - dragOffsetRef.current.x));
       const newY = Math.max(0, Math.min(window.innerHeight - timer.size.height, moveEvent.clientY - dragOffsetRef.current.y));
       onUpdate({ position: { x: Math.round(newX), y: Math.round(newY) } });
@@ -155,14 +154,7 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleClick = (e: React.MouseEvent) => {
-    // If not dragging, toggle pause on single or double click
-    if (!hasMovedRef.current && !(e.target as HTMLElement).closest('button')) {
-      // Allow dragging without accidental clicks
-    }
-  };
-
-  // --- RESIZING LOGIC (Corner Handle maintaining ~1:1.6 aspect ratio) ---
+  // --- RESIZING LOGIC (Corner Handle maintaining aspect ratio) ---
   const handleResizeStart = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -204,7 +196,6 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
       ref={widgetRef}
       id={`hourglass-widget-${timer.id}`}
       onMouseDown={handleMouseDown}
-      onClick={handleClick}
       onDoubleClick={handleTogglePause}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
@@ -219,9 +210,9 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
       }}
       className="absolute top-0 left-0 flex flex-col items-center justify-center select-none cursor-grab active:cursor-grabbing group bg-transparent border-0 shadow-none ring-0 outline-none"
     >
-      {/* FLOATING HOVER MICRO-CONTROL PILL (Floats above the hourglass with NO surrounding frame) */}
+      {/* FLOATING HOVER MICRO-CONTROL PILL (Floats above top cap on hover with NO surrounding box) */}
       <div
-        className={`absolute -top-9 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-2 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/15 shadow-xl transition-all duration-200 pointer-events-auto ${
+        className={`absolute -top-9 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-2 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/15 shadow-xl transition-all duration-200 pointer-events-auto ${
           isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -285,6 +276,20 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
           <Settings2 className="w-3 h-3" />
         </button>
 
+        {/* Pop Out to Desktop (Outside App Window) */}
+        <button
+          title="Pop Out to Desktop: Float outside browser anywhere on your screen"
+          onClick={async () => {
+            const success = await openHourglassInDesktopPiP(timer, onUpdate);
+            if (!success) {
+              alert('To float outside the browser on your real Windows desktop, modern browsers support Document Picture-in-Picture (Chrome/Edge), or you can run the native desktop .exe!');
+            }
+          }}
+          className="p-1 rounded-full text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </button>
+
         {/* Close hourglass */}
         <button
           title="Close hourglass"
@@ -319,8 +324,8 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
         </div>
       )}
 
-      {/* PURE HOURGLASS GRAPHIC (Zero outer bounding boxes, purely the physical silhouette) */}
-      <div className="w-full h-full relative flex items-center justify-center filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]">
+      {/* PURE HOURGLASS GRAPHIC */}
+      <div className="w-full h-full relative flex items-center justify-center">
         <HourglassGraphic
           remainingRatio={timerState.remainingRatio}
           progress={timerState.progress}
@@ -328,21 +333,21 @@ export const HourglassWidget: React.FC<HourglassWidgetProps> = ({
           theme={theme}
         />
 
-        {/* SUBTLE ETCHED TIMER LABEL & REMAINING TIME (Floating directly below bottom cap) */}
+        {/* SUBTLE ETCHED TIMER LABEL & REMAINING TIME (Floating cleanly beneath bottom cap) */}
         <div
           className={`absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap flex flex-col items-center justify-center text-center pointer-events-none transition-opacity duration-200 ${
             isHovered ? 'opacity-100' : 'opacity-85'
           }`}
         >
           <span
-            className={`font-semibold tracking-wider text-slate-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${
+            className={`font-semibold tracking-wider text-slate-200 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] ${
               isSmall ? 'text-[10px]' : isMedium ? 'text-xs' : 'text-sm'
             }`}
           >
             {timer.name}
           </span>
           <span
-            className={`font-mono font-medium tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${
+            className={`font-mono font-medium tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] ${
               timerState.status === 'finished'
                 ? 'text-amber-400 font-bold'
                 : timerState.status === 'paused'

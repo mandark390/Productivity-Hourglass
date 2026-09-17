@@ -23,33 +23,29 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
   const isPaused = status === 'paused';
 
   // SVG coordinate system: 200 x 320
-  // Top Cap: y: 12 to 24
-  // Upper Bulb: y: 24 to 154
+  // Top Cap: y: 14 to 26
+  // Upper Bulb: y: 26 to 154
   // Neck: y: 154 to 166 (width ~ 14, x: 93 to 107)
-  // Lower Bulb: y: 166 to 296
-  // Bottom Cap: y: 296 to 308
+  // Lower Bulb: y: 166 to 294
+  // Bottom Cap: y: 294 to 306
 
   // Upper Sand Level Calculation:
   // Bulb spans y: 28 (highest full) to 154 (neck)
-  // When ratio = 1, top level is y = 30
-  // When ratio = 0, top level is y = 154
   const upperEmptyHeight = (1 - Math.min(1, Math.max(0, remainingRatio))) * (154 - 30);
   const upperSandTopY = 30 + upperEmptyHeight;
 
   // Lower Sand Level Calculation:
   // Bulb spans y: 166 (neck) to 292 (lowest base)
-  // When progress = 0, level is y = 292
-  // When progress = 1, level is y = 168
   const lowerFillHeight = Math.min(1, Math.max(0, progress)) * (292 - 168);
   const lowerSandTopY = 292 - lowerFillHeight;
 
   // Heap peak height in lower chamber when running (sand forms a mound under stream)
-  const heapPeakOffset = isRunning && progress < 0.95 ? Math.min(16, 4 + progress * 14) : (isFinished ? 6 : 2);
+  const heapPeakOffset = isRunning && progress < 0.95 ? Math.min(14, 3 + progress * 11) : (isFinished ? 5 : 2);
 
   return (
     <svg
       viewBox="0 0 200 320"
-      className="w-full h-full drop-shadow-md select-none overflow-visible"
+      className="w-full h-full select-none overflow-hidden"
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
@@ -83,9 +79,8 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
           <stop offset="100%" stopColor="#78350f" />
         </linearGradient>
 
-        {/* Inner Chamber Clipping Path */}
+        {/* Strictly Contained Inner Chamber Clipping Paths */}
         <clipPath id={`upperChamberClip_${safeId}`}>
-          {/* Symmetrical upper bulb interior */}
           <path
             d="M 38 28
                C 38 78, 86 130, 93 154
@@ -96,7 +91,6 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
         </clipPath>
 
         <clipPath id={`lowerChamberClip_${safeId}`}>
-          {/* Symmetrical lower bulb interior */}
           <path
             d="M 93 166
                C 86 190, 38 242, 38 292
@@ -105,15 +99,9 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
                Z"
           />
         </clipPath>
-
-        {/* Filter for subtle glow */}
-        <filter id={`sandGlow_${safeId}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
       </defs>
 
-      {/* Outer Glass Background Silhouette */}
+      {/* Outer Glass Background Shadow & Silhouette */}
       <path
         d="M 36 26
            C 36 80, 84 132, 92 156
@@ -124,45 +112,45 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
            L 108 156
            C 116 132, 164 80, 164 26
            Z"
-        fill="rgba(15, 23, 42, 0.2)"
+        fill="rgba(15, 23, 42, 0.25)"
         stroke={theme.glassBorder}
         strokeWidth="1.2"
       />
 
-      {/* UPPER BULB SAND */}
+      {/* UPPER BULB SAND (STRICTLY CLIPPED INSIDE UPPER BULB) */}
       <g clipPath={`url(#upperChamberClip_${safeId})`}>
         {remainingRatio > 0.001 && (
           <g>
             {/* Sand body in upper bulb */}
             <path
               d={`M 20 ${upperSandTopY}
-                  Q 100 ${isRunning ? upperSandTopY + 7 : upperSandTopY} 180 ${upperSandTopY}
+                  Q 100 ${isRunning ? upperSandTopY + 6 : upperSandTopY} 180 ${upperSandTopY}
                   L 180 160
                   L 20 160
                   Z`}
               fill={`url(#sandGrad_${safeId})`}
             />
 
-            {/* Subtle animated surface granules if running */}
+            {/* Subtle surface meniscus line */}
             {isRunning && (
               <ellipse
                 cx="100"
                 cy={upperSandTopY + 2}
-                rx={Math.max(6, (1 - (upperSandTopY - 30) / 124) * 48)}
-                ry="3"
+                rx={Math.max(6, Math.min(50, (1 - (upperSandTopY - 30) / 124) * 46))}
+                ry="2.5"
                 fill={theme.sandParticle}
-                opacity="0.45"
+                opacity="0.35"
               />
             )}
           </g>
         )}
       </g>
 
-      {/* LOWER BULB SAND */}
+      {/* LOWER BULB SAND (STRICTLY CLIPPED INSIDE LOWER BULB) */}
       <g clipPath={`url(#lowerChamberClip_${safeId})`}>
         {progress > 0.001 && (
           <g>
-            {/* Granular mound / cone of accumulated sand */}
+            {/* Cone of accumulated sand in lower chamber */}
             <path
               d={`M 20 300
                   L 20 ${Math.min(292, lowerSandTopY + 5)}
@@ -173,70 +161,50 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
               fill={`url(#sandGrad_${safeId})`}
             />
 
-            {/* Gentle highlight at top of sand mound */}
+            {/* Mound apex soft highlight */}
             <ellipse
               cx="100"
-              cy={Math.max(172, lowerSandTopY - heapPeakOffset + 2)}
-              rx={Math.min(22, 6 + progress * 20)}
-              ry="3"
+              cy={Math.max(170, lowerSandTopY - heapPeakOffset + 2)}
+              rx={Math.min(20, 5 + progress * 18)}
+              ry="2.5"
               fill={theme.sandParticle}
-              opacity="0.6"
+              opacity="0.5"
+            />
+          </g>
+        )}
+
+        {/* FALLING SAND STREAM (Strictly clipped inside chamber, clean & zero flying particles) */}
+        {isRunning && (
+          <g>
+            {/* Main continuous falling sand thread */}
+            <line
+              x1="100"
+              y1="154"
+              x2="100"
+              y2={Math.max(168, lowerSandTopY - heapPeakOffset + 2)}
+              stroke={theme.sandParticle}
+              strokeWidth="2.2"
+              strokeLinecap="round"
+            />
+
+            {/* Secondary falling shimmer */}
+            <line
+              x1="100"
+              y1="156"
+              x2="100"
+              y2={Math.max(168, lowerSandTopY - heapPeakOffset + 1)}
+              stroke={theme.sandPrimary}
+              strokeWidth="1.2"
+              strokeDasharray="4 2"
+              style={{
+                animation: 'dashFlow 0.25s linear infinite',
+              }}
             />
           </g>
         )}
       </g>
 
-      {/* FALLING SAND STREAM & PARTICLES THROUGH CENTER NECK */}
-      {isRunning && (
-        <g>
-          {/* Main falling thread */}
-          <line
-            x1="100"
-            y1="152"
-            x2="100"
-            y2={Math.max(170, lowerSandTopY - heapPeakOffset + 1)}
-            stroke={theme.sandParticle}
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            className="animate-pulse"
-          />
-
-          {/* Secondary shimmer thread */}
-          <line
-            x1="99.5"
-            y1="154"
-            x2="100.5"
-            y2={Math.max(170, lowerSandTopY - heapPeakOffset)}
-            stroke={theme.sandPrimary}
-            strokeWidth="1.2"
-            strokeDasharray="4 2"
-            style={{
-              animation: 'dashFlow 0.3s linear infinite',
-            }}
-          />
-
-          {/* Impact splash particles at mound apex */}
-          <circle
-            cx="98"
-            cy={Math.max(170, lowerSandTopY - heapPeakOffset)}
-            r="1.2"
-            fill={theme.sandParticle}
-            className="animate-ping"
-            style={{ animationDuration: '0.4s' }}
-          />
-          <circle
-            cx="102"
-            cy={Math.max(170, lowerSandTopY - heapPeakOffset + 1)}
-            r="1"
-            fill={theme.sandParticle}
-            className="animate-ping"
-            style={{ animationDuration: '0.5s' }}
-          />
-        </g>
-      )}
-
       {/* GLASS SHADING, REFLECTIONS & SPECULAR HIGHLIGHTS */}
-      {/* Glass Bulb Fill Overlay */}
       <path
         d="M 36 26
            C 36 80, 84 132, 92 156
@@ -292,42 +260,37 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
       />
 
       {/* Center Neck Collar Rings */}
-      <g>
+      <g pointerEvents="none">
         <ellipse cx="100" cy="156" rx="9" ry="2.5" fill={`url(#goldRingGrad_${safeId})`} />
         <ellipse cx="100" cy="164" rx="9" ry="2.5" fill={`url(#goldRingGrad_${safeId})`} />
-        {/* Subtle glass waist ring */}
         <line x1="93" y1="160" x2="107" y2="160" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
       </g>
 
       {/* TOP PEDIMENT / END CAP */}
       <g>
-        {/* Main plate */}
         <rect
           x="26"
           y="14"
           width="148"
           height="12"
-          rx="4"
+          rx="3"
           fill={`url(#pedimentGrad_${safeId})`}
           stroke="rgba(255,255,255,0.15)"
           strokeWidth="1"
         />
-        {/* Brass accent trim */}
         <line x1="28" y1="24" x2="172" y2="24" stroke={`url(#goldRingGrad_${safeId})`} strokeWidth="1.5" />
         <line x1="32" y1="16" x2="168" y2="16" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />
       </g>
 
       {/* BOTTOM PEDIMENT / END CAP */}
       <g>
-        {/* Brass accent trim */}
         <line x1="28" y1="296" x2="172" y2="296" stroke={`url(#goldRingGrad_${safeId})`} strokeWidth="1.5" />
-        {/* Main plate */}
         <rect
           x="26"
           y="294"
           width="148"
           height="12"
-          rx="4"
+          rx="3"
           fill={`url(#pedimentGrad_${safeId})`}
           stroke="rgba(255,255,255,0.15)"
           strokeWidth="1"
@@ -339,22 +302,22 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
       {isPaused && (
         <g>
           <rect
-            x="54"
-            y="146"
-            width="92"
-            height="28"
-            rx="6"
-            fill="rgba(15, 23, 42, 0.85)"
-            stroke="rgba(255, 255, 255, 0.25)"
+            x="58"
+            y="148"
+            width="84"
+            height="24"
+            rx="5"
+            fill="rgba(15, 23, 42, 0.9)"
+            stroke="rgba(255, 255, 255, 0.2)"
             strokeWidth="1"
           />
           <text
             x="100"
             y="164"
-            fill="#e2e8f0"
-            fontSize="10"
+            fill="#cbd5e1"
+            fontSize="9"
             fontWeight="bold"
-            letterSpacing="1.5"
+            letterSpacing="1.2"
             textAnchor="middle"
             fontFamily="ui-sans-serif, system-ui, sans-serif"
           >
@@ -366,22 +329,22 @@ export const HourglassGraphic: React.FC<HourglassGraphicProps> = ({
       {isFinished && (
         <g className="animate-pulse">
           <rect
-            x="48"
+            x="50"
             y="76"
-            width="104"
-            height="32"
-            rx="8"
+            width="100"
+            height="28"
+            rx="6"
             fill="rgba(15, 23, 42, 0.9)"
             stroke={theme.sandPrimary}
-            strokeWidth="1.5"
+            strokeWidth="1.2"
           />
           <text
             x="100"
-            y="96"
+            y="94"
             fill={theme.sandParticle}
-            fontSize="11"
+            fontSize="10"
             fontWeight="bold"
-            letterSpacing="1.5"
+            letterSpacing="1.2"
             textAnchor="middle"
             fontFamily="ui-sans-serif, system-ui, sans-serif"
           >
